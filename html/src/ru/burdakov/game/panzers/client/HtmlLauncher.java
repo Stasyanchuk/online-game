@@ -9,9 +9,9 @@ import ru.burdakov.game.panzers.client.dto.InputStateImpl;
 import ru.burdakov.game.panzers.client.ws.EventListenerCallback;
 import ru.burdakov.game.panzers.client.ws.WebSocket;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 public class HtmlLauncher extends GwtApplication {
+
+    private MessageProcessor messageProcessor;
 
     @Override
     public GwtApplicationConfiguration getConfig() {
@@ -43,7 +43,9 @@ public class HtmlLauncher extends GwtApplication {
     public ApplicationListener createApplicationListener() {
         WebSocket client = getWebSocket("ws://localhost:8081/ws");
 
+
         Starter starter = new Starter(new InputStateImpl());
+        messageProcessor = new MessageProcessor(starter);
         starter.setMessageSender(message -> {
             client.send(toJson(message));
         });
@@ -54,19 +56,15 @@ public class HtmlLauncher extends GwtApplication {
                 starter.handleTimer();
             }
         };
-        timer.scheduleRepeating(1000/2);
-
-        AtomicBoolean once = new AtomicBoolean(false);
 
         EventListenerCallback callback = event -> {
-            if (!once.get()) {
-                client.send("hello");
-                once.set(true);
-            }
-            log(event.getData());
+            messageProcessor.processEvent(event);
         };
 
-        client.addEventListener("open", callback);
+        client.addEventListener("open", event -> {
+            timer.scheduleRepeating(1000 / 30);
+            messageProcessor.processEvent(event);
+        });
         client.addEventListener("close", callback);
         client.addEventListener("error", callback);
         client.addEventListener("message", callback);
